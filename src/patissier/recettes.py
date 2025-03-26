@@ -57,7 +57,14 @@ class recette(object):
                     return False
         return True 
     
+class etapeTemporelle(object):
     
+    def __init__(self, Etape : etape, tps_debut : int):
+        self.etape = Etape
+        self.tps_debut = tps_debut
+        self.tps_fin = tps_debut + Etape.duree
+      
+  
 class planing(object):
     
     def __init__(self, listeRecette : str):
@@ -71,9 +78,9 @@ class planing(object):
         for recipe in self.listeRecette:
             self.listeEtape += [ step for step in recipe.listeEtapes if step not in self.listeEtape]
             
-        self.planning : List[etape] = []
+        self.planning : List[List[etapeTemporelle]] = []
             
-    def genererPlaning(self):
+    def genererPlaning(self, nb_commis = 1, nb_four = 1):
         
         graph =  dict()
         for sousProduit in self.listeSousProduit:
@@ -86,17 +93,57 @@ class planing(object):
             graph[sousProduit] = list(L) #Obtention des prédécésseur d'un sous produit en créant une copie de la liste
         ts = TopologicalSorter(graph)
         triTopo = list(ts.static_order())
-        self.planning = []
+        
+        
+        self.planning = [[],[]] + [[] for _ in range(nb_commis)]
+        """
+        [0] -> Ligne four
+        [1] -> Attente
+        [2] -> Commis numéro 1
+        [3] -> Commis numéro 2
+        ...
+        """
+        tempsActuel = 0
         for prod in triTopo:
             for step in self.listeEtape:
                 if step.sousProduitFinal == prod:
-                    self.planning.append(step)
+                    
+                    # test prérequis satisfaits
+                    for prerequis in step.sousProduitNecessaires:
+                        for ligne2 in self.planning:
+                            for etapeEnCours in ligne2:
+                                if prerequis == etapeEnCours.etape.sousProduitFinal:
+                                    if( etapeEnCours.tps_fin>tempsActuel):
+                                        tempsActuel = etapeEnCours.tps_fin
+                    if step.besoinFour:                    
+                        # test si four disponible 
+                        if len(self.planning[0]) != 0:
+                            if(self.planning[0][-1].tps_fin > tempsActuel): #[-1] renvoie le dernier élément de la liste (ici étape dans le four)
+                                tempsActuel = self.planning[0][-1].tps_fin
+                                
+                        
+                        etapeTempo = etapeTemporelle(step, tps_debut = tempsActuel)
+                        self.planning[0].append(etapeTempo)
+                    elif not step.active:
+                        etapeTempo = etapeTemporelle(step, tps_debut = tempsActuel)
+                        self.planning[1].append(etapeTempo)
+                    else:
+                        if len(self.planning[2]) != 0:
+                            if(self.planning[2][-1].tps_fin > tempsActuel): #[-1] renvoie le dernier élément de la liste (ici étape dans le four)
+                                tempsActuel = self.planning[2][-1].tps_fin
+                        etapeTempo = etapeTemporelle(step, tps_debut = tempsActuel)
+                        self.planning[2].append(etapeTempo)
             
     def __str__(self):
         S = "Ordre possible : \n"
-        temps = 0
-        for i, step in enumerate(self.planning):
-            S += str(i+1) + ") " + step.nom + ", durée : " + str(step.duree) + " min\n"
-            temps += step.duree
-        S += "Temps total : " + str(temps) + " min"
-        return S 
+        maxTemps = 0
+        for ligne in self.planning:   
+            temps = 0  
+            for i, step in enumerate(ligne):
+                S += "[ " + str(step.tps_debut) + " - " + str(step.etape.nom) +" - " + str(step.tps_fin) + " ]"
+                temps += step.etape.duree
+            S += "\n"
+            if(ligne[-1].tps_fin > maxTemps):
+                maxTemps = ligne[-1].tps_fin
+        S += "Temps total : " + str(maxTemps) + " min"
+        return S

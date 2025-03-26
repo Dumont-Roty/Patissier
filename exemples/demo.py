@@ -36,3 +36,8 @@ RecetteChoux = recette(EtapesChoux)
 MonPlanning = planing([RecetteChoux,RecetteTarteAuxFraises])
 MonPlanning.genererPlaning()
 print(MonPlanning)
+
+
+###### 
+# 2 commis, 1 four
+
